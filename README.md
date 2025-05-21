@@ -82,239 +82,35 @@ Project sử dụng mô hình dữ liệu Star Schema với các bảng chính s
 - FactSales[GeographyKey] → DimGeography[GeographyKey]
 - FactSales[ShipModeKey] → DimShipMode[ShipModeKey]
 
-## 3. Các KPI và Measure DAX Chi tiết
+## 3. Các KPI và Measure DAX Chính
 
 Project sử dụng nhiều measure DAX để tính toán các KPI quan trọng:
 
 ### 3.1. Measures Cơ bản
 
-- **Total Sales/Revenue**:
-  ```dax
-  Total Sales = SUM(FactSales[Sales])
-  ```
-
-- **Total Profit**:
-  ```dax
-  Total Profit = SUM(FactSales[Profit])
-  ```
-
-- **Profit Margin %**:
-  ```dax
-  Profit Margin % = 
-  DIVIDE(
-      [Total Profit],
-      [Total Sales],
-      0
-  )
-  ```
-  *Lưu ý*: Hàm DIVIDE được sử dụng để xử lý trường hợp Total Sales = 0, trả về 0 thay vì lỗi.
-
-- **Total Costs**:
-  ```dax
-  Total Costs = [Total Sales] - [Total Profit]
-  ```
-  *Lưu ý*: Khi Profit âm (lỗ), Total Costs sẽ lớn hơn Total Sales, phản ánh đúng thực tế kinh doanh.
-
-- **Total Quantity Sold**:
-  ```dax
-  Total Quantity = SUM(FactSales[Quantity])
-  ```
-
-- **Total Orders**:
-  ```dax
-  Total Orders = DISTINCTCOUNT(FactSales[OrderID])
-  ```
-
-- **Average Sales per Order (AOV)**:
-  ```dax
-  Average Sales per Order = 
-  DIVIDE(
-      [Total Sales],
-      [Total Orders],
-      0
-  )
-  ```
-
-- **Total Shipping Cost**:
-  ```dax
-  Total Shipping Cost = SUM(FactSales[Shipping Cost])
-  ```
-
-- **Total Discount Amount**:
-  ```dax
-  Total Discount Amount = 
-  SUMX(
-      FactSales,
-      FactSales[Sales] * FactSales[Discount]
-  )
-  ```
-
-- **Average Discount %**:
-  ```dax
-  Average Discount % = 
-  DIVIDE(
-      SUMX(FactSales, FactSales[Sales] * FactSales[Discount]),
-      SUMX(FactSales, FactSales[Sales] / (1 - FactSales[Discount])),
-      0
-  )
-  ```
+- **Total Sales/Revenue**: Tổng doanh thu từ bán hàng.
+- **Total Profit**: Tổng lợi nhuận.
+- **Profit Margin %**: Tỷ suất lợi nhuận (Profit/Sales).
+- **Total Costs**: Chi phí tổng (Sales - Profit).
+- **Total Quantity Sold**: Tổng số lượng sản phẩm đã bán.
+- **Total Orders**: Số lượng đơn hàng.
+- **Average Sales per Order (AOV)**: Doanh số trung bình mỗi đơn hàng.
+- **Total Shipping Cost**: Tổng chi phí vận chuyển.
+- **Total Discount Amount**: Tổng số tiền chiết khấu.
 
 ### 3.2. Measures Phân tích Thời gian
 
-- **Sales YoY Growth %**:
-  ```dax
-  Sales YoY Growth % = 
-  VAR CurrentSales = [Total Sales]
-  VAR PreviousSales = 
-      CALCULATE(
-          [Total Sales],
-          SAMEPERIODLASTYEAR(DimDate[Date])
-      )
-  RETURN
-  DIVIDE(
-      CurrentSales - PreviousSales,
-      PreviousSales,
-      0
-  )
-  ```
-
-- **Sales SPLY (Same Period Last Year)**:
-  ```dax
-  Sales SPLY = 
-  CALCULATE(
-      [Total Sales],
-      SAMEPERIODLASTYEAR(DimDate[Date])
-  )
-  ```
-
-- **Sales YTD (Year-to-Date)**:
-  ```dax
-  Sales YTD = 
-  CALCULATE(
-      [Total Sales],
-      DATESYTD(DimDate[Date])
-  )
-  ```
-
-- **Sales QTD (Quarter-to-Date)**:
-  ```dax
-  Sales QTD = 
-  CALCULATE(
-      [Total Sales],
-      DATESQTD(DimDate[Date])
-  )
-  ```
-
-- **Sales MTD (Month-to-Date)**:
-  ```dax
-  Sales MTD = 
-  CALCULATE(
-      [Total Sales],
-      DATESMTD(DimDate[Date])
-  )
-  ```
+- **Sales YoY Growth %**: Tỷ lệ tăng trưởng doanh số so với cùng kỳ năm trước.
+- **Sales SPLY (Same Period Last Year)**: Doanh số cùng kỳ năm trước.
+- **Sales YTD/QTD/MTD**: Doanh số lũy kế từ đầu năm/quý/tháng.
 
 ### 3.3. Measures Phân tích Nâng cao
 
-- **Product Sales Rank**:
-  ```dax
-  Product Sales Rank = 
-  RANKX(
-      ALL(DimProduct),
-      [Total Sales],
-      ,
-      DESC
-  )
-  ```
-
-- **Customer Profit Rank**:
-  ```dax
-  Customer Profit Rank = 
-  RANKX(
-      ALL(DimCustomer),
-      [Total Profit],
-      ,
-      DESC
-  )
-  ```
-
-- **% Product Sales of Category Total**:
-  ```dax
-  % Product Sales of Category Total = 
-  VAR ProductSales = [Total Sales]
-  VAR CategorySales = 
-      CALCULATE(
-          [Total Sales],
-          ALLEXCEPT(DimProduct, DimProduct[Category])
-      )
-  RETURN
-  DIVIDE(
-      ProductSales,
-      CategorySales,
-      0
-  )
-  ```
-
-- **Average Shipping Duration Days**:
-  ```dax
-  Average Shipping Duration Days = 
-  AVERAGEX(
-      FactSales,
-      DATEDIFF(FactSales[OrderDate], FactSales[ShipDate], DAY)
-  )
-  ```
-
-- **Late Shipment Rate %**:
-  ```dax
-  Late Shipment Rate % = 
-  VAR LateShipments = 
-      COUNTROWS(
-          FILTER(
-              FactSales,
-              DATEDIFF(FactSales[OrderDate], FactSales[ShipDate], DAY) > 5
-          )
-      )
-  VAR TotalShipments = COUNTROWS(FactSales)
-  RETURN
-  DIVIDE(
-      LateShipments,
-      TotalShipments,
-      0
-  )
-  ```
-
-- **Running Total Sales**:
-  ```dax
-  Running Total Sales = 
-  CALCULATE(
-      [Total Sales],
-      DATESYTD(DimDate[Date], "12-31")
-  )
-  ```
-
-- **Sales Moving Average (3 Months)**:
-  ```dax
-  Sales Moving Average (3M) = 
-  AVERAGEX(
-      DATESINPERIOD(
-          DimDate[Date],
-          MAX(DimDate[Date]),
-          -3,
-          MONTH
-      ),
-      [Total Sales]
-  )
-  ```
-
-- **Customer Lifetime Value**:
-  ```dax
-  Customer Lifetime Value = 
-  DIVIDE(
-      [Total Profit],
-      DISTINCTCOUNT(DimCustomer[CustomerKey]),
-      0
-  )
-  ```
+- **Product Sales Rank**: Xếp hạng sản phẩm theo doanh số.
+- **Customer Profit Rank**: Xếp hạng khách hàng theo lợi nhuận.
+- **% Product Sales of Category Total**: Tỷ trọng doanh số của sản phẩm so với tổng doanh số của Category.
+- **Average Shipping Duration Days**: Thời gian giao hàng trung bình.
+- **Late Shipment Rate %**: Tỷ lệ đơn hàng giao trễ.
 
 ## 4. Báo cáo và Dashboard Chi tiết
 
